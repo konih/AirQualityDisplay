@@ -1,4 +1,4 @@
-#include "RotaryEncoder.h"
+#include <Rotary.h>
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 #include <SFE_BMP180.h>
@@ -15,10 +15,13 @@
 #define MQ3PIN 17
 #define PHOTOCELLPIN 14
 
+//Rotary Encoder
+Rotary r = Rotary(2, 3);
+
 // Humidity Sensor
 dht DHT;
 #define DHT11_PIN 10
-
+#define NUMBEROFSCEENS 2
 // Pressure Sensor
 SFE_BMP180 pressure;
 #define ALTITUDE 355.0
@@ -28,9 +31,6 @@ DS1302RTC RTC(7, 6, 5);
 
 // LCD Display
 LiquidCrystal_I2C lcd(0x3F, 20, 4);
-
-// Rotary Encode
-RotaryEncoder* RotaryEncoder::instance = new RotaryEncoder(2, 3);
 
 // Gas Sensors
 MQ135 mq135 = MQ135(MQ135PIN);
@@ -216,21 +216,32 @@ void setup() {
   // Print a message to the LCD.
   lcd.backlight();
   setSyncProvider(RTC.get);
+
+  //Rotary encoder stuff
+  r.begin();
+  PCICR |= (1 << PCIE2);
+  PCMSK2 |= (1 << PCINT18) | (1 << PCINT19);
+  sei();
+}
+
+//Rotary Encoder ISR
+ISR(PCINT2_vect) {
+  unsigned char result = r.process();
+  if (result == DIR_NONE) {
+    // do nothing
+  }
+  else if (result == DIR_CW) {
+    Serial.println("ClockWise");
+    position = position >= NUMBEROFSCEENS - 1? position : position + 1;
+  }
+  else if (result == DIR_CCW) {
+    Serial.println("CounterClockWise");
+     position = position <= 0? position : position - 1;
+  }
 }
 
 void loop() {
-  int change = RotaryEncoder::instance->getChange();
   lcdDisplayScreens(position);
-
-  //Serial.println( RotaryEncoder::instance->encoderPos);
-  if (change > 0) {
-    position = position > 1 ? position : position + 1;
-  }
-  else if (change < 0)
-  {
-    position = position < 1 ? position : position - 1;
-  }
-
   updateSensors();
   serialPrintSensors();
   delay ( 750 ); // Wait approx 1 sec
